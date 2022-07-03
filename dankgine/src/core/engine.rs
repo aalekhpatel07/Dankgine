@@ -15,6 +15,12 @@ impl State {
     }
 }
 
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[allow(dead_code)]
 #[wasm_bindgen]
 pub fn update() -> String {
