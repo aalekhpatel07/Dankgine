@@ -1,9 +1,21 @@
 use crate::geometry::vector::Vec2;
 use crate::geometry::verlet::VerletObject;
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
+
+
+
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct Solver {
     gravity: Vec2,
+}
+
+impl Default for Solver {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Solver {
@@ -13,7 +25,7 @@ impl Solver {
         }
     }
 
-    pub fn update(self, dt: f32, bodies: &mut Vec<VerletObject>) {
+    pub fn update(self, dt: f32, bodies: &mut [VerletObject]) {
         let sub_steps: usize = 8;
         let sub_dt = dt / sub_steps as f32;
         for _ in [0..sub_steps] {
@@ -24,32 +36,54 @@ impl Solver {
         }
     }
 
-    fn update_position(&self, dt: f32, bodies: &mut Vec<VerletObject>) {
+    fn update_position(&self, dt: f32, bodies: &mut [VerletObject]) {
         for body in bodies {
             body.update_position(dt);
         }
     }
 
-    fn apply_gravity(self, bodies: &mut Vec<VerletObject>) {
+    fn apply_gravity(self, bodies: &mut [VerletObject]) {
         for body in bodies {
             body.accelerate(self.gravity);
         }
     }
 
-    fn apply_constraint(self, bodies: &mut Vec<VerletObject>) {
+
+    #[cfg(feature = "parallel")]
+    fn apply_constraint(self, bodies: &mut [VerletObject]) {
         let constraint_position = Vec2::new(300.0, 300.0);
         let radius: f32 = 300.0;
-        for body in bodies {
+
+        bodies
+        .par_iter_mut()
+        .for_each(|body| {
             let diff = body.current_position - constraint_position;
             let dist = diff.length();
             if dist > radius - body.radius {
                 let n = diff / dist;
                 body.current_position = constraint_position + n * (radius - body.radius);
             }
-        }
+        });
     }
 
-    fn solve_collisions(self, bodies: &mut Vec<VerletObject>) {
+    #[cfg(not(feature = "parallel"))]
+    fn apply_constraint(self, bodies: &mut [VerletObject]) {
+        let constraint_position = Vec2::new(300.0, 300.0);
+        let radius: f32 = 300.0;
+
+        bodies
+        .iter_mut()
+        .for_each(|body| {
+            let diff = body.current_position - constraint_position;
+            let dist = diff.length();
+            if dist > radius - body.radius {
+                let n = diff / dist;
+                body.current_position = constraint_position + n * (radius - body.radius);
+            }
+        });
+    }
+
+    fn solve_collisions(self, bodies: &mut [VerletObject]) {
         let count = bodies.len();
 
         for i in 0..count {
@@ -75,11 +109,9 @@ impl Solver {
     }
 }
 
-fn get_two_mut<'a, T>(i: usize, k: usize, vec: &'a mut Vec<T>) -> Option<(&'a mut T, &'a mut T)> {
+fn get_two_mut<T>(i: usize, k: usize, vec: &mut [T]) -> Option<(&mut T, &mut T)> {
     let vec_length = vec.len();
-    if i == k {
-        return None;
-    } else if i >= vec_length || k >= vec_length {
+    if i == k || i >= vec_length || k >= vec_length {
         return None;
     }
 

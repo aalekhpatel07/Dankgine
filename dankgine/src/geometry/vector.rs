@@ -1,5 +1,5 @@
 #[cfg(not(features = "simd"))]
-mod vector {
+mod no_simd_vector {
     use serde_derive::Serialize;
     use serde_derive::Deserialize;
     use std::ops::{Add, Mul, Div, Sub};
@@ -186,4 +186,4 @@ mod vector_simd {
 pub use vector_simd::*;
 
 #[cfg(not(features = "simd"))]
-pub use vector::*;
+pub use no_simd_vector::*;
